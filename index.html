@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>만화 로케헌 — 실제 지도를 만화 배경으로</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background:#f4f1e8; color:#141414; min-height:100vh; padding:14px 10px 40px;
+  }
+  #wrap { width:100%; max-width:720px; margin:0 auto; }
+  header { text-align:center; margin:10px 0 18px; }
+  header h1 { font-size:28px; font-weight:900; letter-spacing:-1px; }
+  header p { font-size:13px; opacity:.65; margin-top:4px; }
+  .card { background:#fff; border:2px solid #141414; border-radius:6px; padding:16px; margin-bottom:14px; box-shadow:4px 4px 0 #141414; }
+  .card h2 { font-size:16px; margin-bottom:12px; }
+  .step { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#141414; color:#fff; font-size:13px; font-weight:800; }
+  label.lbl { display:block; font-size:12px; opacity:.7; margin:10px 0 4px; font-weight:700; }
+  input[type=text], input[type=number] { width:100%; padding:10px 12px; border-radius:6px; border:2px solid #141414; background:#fff; color:#141414; font-size:15px; font-family:inherit; }
+  input:focus { outline:2px solid #141414; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .seg { display:flex; gap:8px; flex-wrap:wrap; }
+  .seg button { flex:1; min-width:60px; padding:10px 6px; border-radius:6px; border:2px solid #141414; background:#fff; color:#141414; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; }
+  .seg button.on { background:#141414; color:#fff; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; }
+  .chips button { padding:8px 12px; border-radius:20px; border:2px solid #141414; background:#fff; color:#141414; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
+  .chips button:active { background:#141414; color:#fff; }
+  button.primary { display:block; width:100%; margin-top:14px; padding:13px; border-radius:6px; border:2px solid #141414; background:#141414; color:#fff; font-size:16px; font-weight:800; cursor:pointer; font-family:inherit; }
+  button.primary:active { transform:scale(.98); }
+  button.primary:disabled { opacity:.5; }
+  .status { font-size:13px; margin-top:10px; min-height:18px; }
+  .status.err { color:#c00; font-weight:700; }
+  #stageWrap { position:relative; border:2px solid #141414; border-radius:6px; overflow:hidden; background:#fff; touch-action:none; }
+  #stage { display:block; width:100%; height:52vh; min-height:320px; cursor:grab; }
+  #spinner { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(255,255,255,.78); font-weight:800; font-size:15px; z-index:5; }
+  #spinner.show { display:flex; }
+  .spin { width:32px; height:32px; border:4px solid #ddd; border-top-color:#141414; border-radius:50%; animation:sp .8s linear infinite; margin-right:10px; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+  .toggle { display:flex; align-items:center; justify-content:space-between; margin-top:10px; background:#f7f5ee; border:2px solid #141414; border-radius:6px; padding:10px 12px; }
+  .toggle span { font-size:14px; font-weight:700; }
+  .toggle button { padding:8px 18px; border-radius:20px; border:2px solid #141414; background:#fff; color:#141414; font-weight:800; cursor:pointer; font-family:inherit; }
+  .toggle button.on { background:#141414; color:#fff; }
+  input[type=range] { width:100%; accent-color:#141414; height:28px; }
+  .sliderow { display:flex; align-items:center; gap:10px; margin-top:4px; }
+  .sliderow input[type=range] { flex:1; }
+  .sliderow .val { font-size:13px; min-width:44px; text-align:right; font-weight:700; }
+  .btnrow { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .btnrow button { flex:1; min-width:110px; padding:12px 8px; border-radius:6px; border:2px solid #141414; background:#fff; color:#141414; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; }
+  .btnrow button:active { background:#141414; color:#fff; }
+  .muted { font-size:12px; opacity:.6; font-weight:400; }
+  .note { font-size:12px; opacity:.6; margin-top:10px; line-height:1.6; }
+  footer { text-align:center; font-size:12px; opacity:.5; margin-top:18px; line-height:1.8; }
+  #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#141414; color:#fff; padding:10px 18px; border-radius:24px; font-size:14px; display:none; z-index:50; max-width:90vw; text-align:center; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <h1>🎬 만화 로케헌</h1>
+    <p>실제 지도 + 표고를 3D 만화 배경(선화·스크린톤)으로 그리는 도구</p>
+  </header>
+
+  <div class="card">
+    <h2><span class="step">1</span> 장소 설정</h2>
+    <label class="lbl">장소 이름 (표시·파일명용)</label>
+    <input type="text" id="pname" value="서울 · 북촌 한옥마을" maxlength="40">
+    <div class="row2">
+      <div><label class="lbl">위도</label><input type="number" id="plat" step="0.0001" value="37.5826"></div>
+      <div><label class="lbl">경도</label><input type="number" id="plng" step="0.0001" value="126.9837"></div>
+    </div>
+    <label class="lbl">범위</label>
+    <div class="seg" id="rangeSeg">
+      <button data-v="200">200m</button>
+      <button data-v="300" class="on">300m</button>
+      <button data-v="500">500m</button>
+      <button data-v="1000">1km</button>
+    </div>
+    <label class="lbl">프리셋</label>
+    <div class="chips" id="presetChips">
+      <button data-lat="37.5826" data-lng="126.9837" data-n="서울 · 북촌 한옥마을">🏠 북촌한옥마을</button>
+      <button data-lat="37.5568" data-lng="126.9240" data-n="서울 · 홍대입구">🎸 홍대입구</button>
+      <button data-lat="35.1586" data-lng="129.1604" data-n="부산 · 해운대">🌊 해운대</button>
+      <button data-lat="35.8367" data-lng="129.2165" data-n="경주 · 황리단길">🏛 황리단길</button>
+    </div>
+    <button class="primary" id="loadBtn">🗺 불러오기</button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="step">2</span> 만화 배경 <span class="muted" id="bcount"></span></h2>
+    <div id="stageWrap">
+      <canvas id="stage"></canvas>
+      <div id="spinner"><div class="spin"></div><span id="spinTxt">불러오는 중…</span></div>
+    </div>
+    <p class="note">드래그: 회전 · 마우스 휠/두 손가락 핀치: 줌</p>
+  </div>
+
+  <div class="card">
+    <h2><span class="step">3</span> 스타일</h2>
+    <div class="toggle"><span>◼ 스크린톤</span><button id="toneBtn" class="on">ON</button></div>
+    <div class="toggle"><span>↔ 수평선</span><button id="horizonBtn" class="on">ON</button></div>
+    <div class="toggle"><span>🔁 자동 회전</span><button id="rotBtn">OFF</button></div>
+    <label class="lbl">선 굵기</label>
+    <div class="sliderow">
+      <input type="range" id="lineRange" min="1" max="4" step="0.5" value="2">
+      <span class="val" id="lineVal">2px</span>
+    </div>
+    <div class="btnrow"><button id="resetYaw">⟲ 회전 리셋</button></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="step">4</span> 출력</h2>
+    <div class="btnrow">
+      <button id="dl1">⬇ PNG (1x)</button>
+      <button id="dl2">⬇ PNG (2x)</button>
+      <button id="copyLink">🔗 링크 복사</button>
+    </div>
+    <p class="note">링크에는 장소·범위·회전각이 포함됩니다.</p>
+  </div>
+
+  <footer>
+    만화 로케헌 v1.0 · 100% 브라우저에서 동작<br>
+    건물 데이터: © OpenStreetMap contributors (Overpass API) · 표고: Terrarium 타일
+  </footer>
+</div>
+<div id="toast"></div>
+<script>
+"use strict";
+/* ================= pure helpers (unit-testable, no DOM) ================= */
+var DEG2RAD = Math.PI / 180;
+function latLngToMeters(lat, lng, clat, clng){
+  return {
+    x: (lng - clng) * 111320 * Math.cos(clat * DEG2RAD),
+    z: (clat - lat) * 110540
+  };
+}
+function terrariumDecode(r, g, b){ return r * 256 + g + b / 256 - 32768; }
+function rotYaw(x, z, yawRad){
+  var c = Math.cos(yawRad), s = Math.sin(yawRad);
+  return { x: x * c + z * s, z: -x * s + z * c };
+}
+function rotPitch(y, z, pitchRad){
+  var c = Math.cos(pitchRad), s = Math.sin(pitchRad);
+  return { y: y * c - z * s, z: y * s + z * c };
+}
+function projectPt(x, y, z, P){
+  var r = rotYaw(x, z, P.yaw);
+  var p = rotPitch(y, r.z, P.pitch);
+  /* 카메라는 남쪽(+z)에 있고 북쪽(-z)을 봄: z''가 작을수록 멀리 있음 */
+  var sc = P.f / (P.f - p.z * P.k + P.camOff);
+  return { sx: P.cx + r.x * P.k * sc, sy: P.cy - p.y * P.k * sc, s: sc, depth: -p.z };
+}
+function faceDepthCmp(a, b){ return a.depth - b.depth; }
+function parseHeight(tags){
+  tags = tags || {};
+  if (tags.height != null){
+    var m = parseFloat(String(tags.height).replace(/[^0-9.\-]/g, ""));
+    if (isFinite(m) && m > 0 && m < 500) return m;
+  }
+  if (tags["building:levels"] != null){
+    var l = parseFloat(tags["building:levels"]);
+    if (isFinite(l) && l > 0) return l * 3;
+  }
+  return 8;
+}
+function tileXY(lat, lng, z){
+  var n = Math.pow(2, z);
+  var x = Math.floor((lng + 180) / 360 * n);
+  var lr = lat * DEG2RAD;
+  var y = Math.floor((1 - Math.log(Math.tan(lr) + 1 / Math.cos(lr)) / Math.PI) / 2 * n);
+  return { x: x, y: y };
+}
+function simplifyPts(pts, max){
+  if (pts.length <= max) return pts;
+  var step = Math.ceil(pts.length / max), out = [];
+  for (var i = 0; i < pts.length; i += step) out.push(pts[i]);
+  return out;
+}
+function centroid2(pts){
+  var sx = 0, sz = 0, i;
+  for (i = 0; i < pts.length; i++){ sx += pts[i][0]; sz += pts[i][1]; }
+  return [sx / pts.length, sz / pts.length];
+}
+/* ================= app (DOM) ================= */
+if (typeof document !== "undefined") (function(){
+var $ = function(id){ return document.getElementById(id); };
+var els = {
+  pname: $("pname"), plat: $("plat"), plng: $("plng"), rangeSeg: $("rangeSeg"),
+  loadBtn: $("loadBtn"), status: $("status"), stage: $("stage"), stageWrap: $("stageWrap"),
+  spinner: $("spinner"), spinTxt: $("spinTxt"), bcount: $("bcount"),
+  toneBtn: $("toneBtn"), horizonBtn: $("horizonBtn"), rotBtn: $("rotBtn"),
+  lineRange: $("lineRange"), lineVal: $("lineVal"), resetYaw: $("resetYaw"),
+  dl1: $("dl1"), dl2: $("dl2"), copyLink: $("copyLink"), toast: $("toast")
+};
+var canvas = els.stage, ctx = canvas.getContext("2d");
+var cssW = 0, cssH = 0;
+
+var state = {
+  name: "서울 · 북촌 한옥마을", lat: 37.5826, lng: 126.9837, range: 300,
+  yaw: 0, zoom: 1, pitch: 35 * DEG2RAD,
+  buildings: [], elev: null,
+  tone: true, horizon: true, autoRot: false, lineW: 2,
+  loading: false, dirty: true
+};
+
+var toastTimer = null;
+function toast(msg){
+  els.toast.textContent = msg; els.toast.style.display = "block";
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ els.toast.style.display = "none"; }, 3200);
+}
+function setStatus(msg, err){
+  els.status.textContent = msg || "";
+  els.status.className = "status" + (err ? " err" : "");
+}
+function setLoading(on, txt){
+  state.loading = on;
+  els.spinner.classList.toggle("show", on);
+  if (txt) els.spinTxt.textContent = txt;
+  els.loadBtn.disabled = on;
+}
+function markDirty(){ state.dirty = true; }
+
+/* ---------- hash ---------- */
+function updateHash(){
+  var h = "#ll=" + state.lat.toFixed(6) + "," + state.lng.toFixed(6) +
+    "&s=" + state.range + "&yaw=" + Math.round(state.yaw) +
+    "&n=" + encodeURIComponent(state.name);
+  try { history.replaceState(null, "", h); } catch(e){}
+}
+function parseHash(){
+  try {
+    var h = location.hash.slice(1);
+    if (!h) return false;
+    var p = new URLSearchParams(h), ok = false;
+    if (p.get("ll")){
+      var ab = p.get("ll").split(",");
+      var a = parseFloat(ab[0]), b = parseFloat(ab[1]);
+      if (isFinite(a) && isFinite(b)){ state.lat = a; state.lng = b; ok = true; }
+    }
+    if (p.get("s")){
+      var s = parseInt(p.get("s"), 10);
+      if ([200,300,500,1000].indexOf(s) >= 0){ state.range = s; ok = true; }
+    }
+    if (p.get("yaw")){
+      var y = parseFloat(p.get("yaw"));
+      if (isFinite(y)){ state.yaw = ((y % 360) + 360) % 360; ok = true; }
+    }
+    if (p.get("n")){ state.name = decodeURIComponent(p.get("n")); ok = true; }
+    return ok;
+  } catch(e){ return false; }
+}
+function syncInputs(){
+  els.pname.value = state.name;
+  els.plat.value = state.lat; els.plng.value = state.lng;
+  var btns = els.rangeSeg.querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++)
+    btns[i].classList.toggle("on", parseInt(btns[i].getAttribute("data-v"),10) === state.range);
+}
+
+/* ---------- elevation (quiet flat fallback) ---------- */
+function elevAt(x, z){
+  var e = state.elev;
+  if (!e) return 0;
+  var s = state.range, n = e.n;
+  var ix = Math.round((x + s/2) / s * (n - 1));
+  var iz = Math.round((z + s/2) / s * (n - 1));
+  ix = Math.max(0, Math.min(n - 1, ix));
+  iz = Math.max(0, Math.min(n - 1, iz));
+  return e.vals[iz * n + ix];
+}
+function loadElevation(){
+  var Z = 14, n = 24, s = state.range;
+  var vals = new Float32Array(n * n);
+  var cache = {};
+  function tileData(tx, ty){
+    var key = tx + "/" + ty;
+    if (cache[key]) return Promise.resolve(cache[key]);
+    return new Promise(function(res, rej){
+      var img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = function(){
+        try {
+          var c = document.createElement("canvas"); c.width = c.height = 256;
+          var g = c.getContext("2d", { willReadFrequently: true });
+          g.drawImage(img, 0, 0);
+          var id = g.getImageData(0, 0, 256, 256);
+          cache[key] = id; res(id);
+        } catch(e){ rej(e); }
+      };
+      img.onerror = function(){ rej(new Error("tile load fail")); };
+      img.src = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/" + Z + "/" + tx + "/" + ty + ".png";
+    });
+  }
+  var jobs = [];
+  for (var j = 0; j < n; j++) for (var i = 0; i < n; i++){
+    (function(i, j){
+      jobs.push((function(){
+        var x = -s/2 + s * i / (n - 1), z = -s/2 + s * j / (n - 1);
+        var lat = state.lat - z / 110540;
+        var lng = state.lng + x / (111320 * Math.cos(state.lat * DEG2RAD));
+        var t = tileXY(lat, lng, Z);
+        return tileData(t.x, t.y).then(function(id){
+          var nn = Math.pow(2, Z);
+          var fx = (lng + 180) / 360 * nn - t.x;
+          var lr = lat * DEG2RAD;
+          var fy = (1 - Math.log(Math.tan(lr) + 1 / Math.cos(lr)) / Math.PI) / 2 * nn - t.y;
+          var px = Math.max(0, Math.min(255, Math.floor(fx * 256)));
+          var py = Math.max(0, Math.min(255, Math.floor(fy * 256)));
+          var o = (py * 256 + px) * 4;
+          vals[j * n + i] = terrariumDecode(id.data[o], id.data[o+1], id.data[o+2]);
+        });
+      })());
+    })(i, j);
+  }
+  return Promise.all(jobs).then(function(){
+    var mn = Infinity, mx = -Infinity, k;
+    for (k = 0; k < vals.length; k++){ if (vals[k] < mn) mn = vals[k]; if (vals[k] > mx) mx = vals[k]; }
+    return { n: n, vals: vals, min: mn, max: mx };
+  });
+}
+
+/* ---------- overpass ---------- */
+function loadAll(){
+  var nm = els.pname.value.trim() || "untitled";
+  var la = parseFloat(els.plat.value), ln = parseFloat(els.plng.value);
+  if (!isFinite(la) || !isFinite(ln) || la < -90 || la > 90 || ln < -180 || ln > 180){
+    setStatus("위도/경도를 확인해주세요.", true); return;
+  }
+  state.name = nm; state.lat = la; state.lng = ln;
+  setLoading(true, "건물 데이터 불러오는 중…");
+  setStatus("");
+  var half = state.range / 2;
+  var dLat = half / 110540, dLng = half / (111320 * Math.cos(state.lat * DEG2RAD));
+  var S = (state.lat - dLat).toFixed(6), N = (state.lat + dLat).toFixed(6);
+  var W = (state.lng - dLng).toFixed(6), E = (state.lng + dLng).toFixed(6);
+  var q = '[out:json][timeout:30];way["building"](' + S + "," + W + "," + N + "," + E + ");out tags geom;";
+  fetch("https://overpass-api.de/api/interpreter", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "data=" + encodeURIComponent(q)
+  }).then(function(res){
+    if (!res.ok) throw new Error("Overpass 응답 오류 " + res.status);
+    return res.json();
+  }).then(function(data){
+    var els2 = (data.elements || []).filter(function(e){
+      return e.type === "way" && e.geometry && e.geometry.length >= 3;
+    });
+    if (els2.length > 1500){
+      toast("건물이 " + els2.length + "개로 너무 많습니다. 범위를 줄여주세요.");
+      setLoading(false); setStatus("건물 과다 — 범위를 줄여주세요.", true);
+      return;
+    }
+    var buildings = [];
+    for (var i = 0; i < els2.length; i++){
+      var el = els2[i], pts = [];
+      for (var g = 0; g < el.geometry.length; g++){
+        var m = latLngToMeters(el.geometry[g].lat, el.geometry[g].lon, state.lat, state.lng);
+        pts.push([m.x, m.z]);
+      }
+      if (pts.length > 1){
+        var a = pts[0], b = pts[pts.length - 1];
+        if (Math.hypot(a[0]-b[0], a[1]-b[1]) < 0.01) pts.pop();
+      }
+      pts = simplifyPts(pts, 200);
+      if (pts.length < 3) continue;
+      var c = centroid2(pts);
+      buildings.push({ pts: pts, h: parseHeight(el.tags), cx: c[0], cz: c[1] });
+    }
+    state.buildings = buildings;
+    els.bcount.textContent = "· 건물 " + buildings.length + "개";
+    setStatus("건물 " + buildings.length + "개 로드 — 표고 불러오는 중…");
+    setLoading(true, "표고 데이터 불러오는 중…");
+    return loadElevation().then(function(elev){
+      state.elev = elev;
+      setStatus("건물 " + buildings.length + "개 · 표고 적용됨");
+    }, function(){
+      state.elev = null; /* 조용한 평지 폴백 */
+      setStatus("건물 " + buildings.length + "개 · 표고 없음 (평지)");
+    });
+  }).then(function(){
+    state.yaw = 0; state.zoom = 1;
+    markDirty(); updateHash();
+  }).catch(function(err){
+    setStatus("데이터를 불러오지 못했습니다: " + err.message, true);
+  }).finally(function(){
+    setLoading(false); markDirty();
+  });
+}
+/* ---------- projection params ---------- */
+function projParams(W, H){
+  var span = state.range;
+  var minDim = Math.min(W, H), maxDim = Math.max(W, H);
+  var k = 0.82 * minDim / span * state.zoom;
+  return {
+    yaw: state.yaw * DEG2RAD, pitch: state.pitch, k: k,
+    f: 2.5 * maxDim, camOff: 2.0 * span * k,
+    cx: W / 2, cy: H * 0.55
+  };
+}
+
+/* ---------- face building ---------- */
+var LIGHT = { x: -0.7071, z: -0.7071 }; /* 좌상단 광원 */
+function buildFaces(P){
+  var faces = [], i, j;
+  var bi, b, n, y0, y1, p1, p2, dx, dz, nx, nz, mx, mz, len, dot, v;
+  for (bi = 0; bi < state.buildings.length; bi++){
+    b = state.buildings[bi]; n = b.pts.length;
+    y0 = elevAt(b.cx, b.cz); y1 = y0 + b.h;
+    var roofV = [];
+    for (i = 0; i < n; i++) roofV.push({ x: b.pts[i][0], y: y1, z: b.pts[i][1] });
+    faces.push({ v: roofV, kind: "roof", tone: false });
+    for (i = 0; i < n; i++){
+      p1 = b.pts[i]; p2 = b.pts[(i + 1) % n];
+      v = [
+        { x: p1[0], y: y0, z: p1[1] }, { x: p2[0], y: y0, z: p2[1] },
+        { x: p2[0], y: y1, z: p2[1] }, { x: p1[0], y: y1, z: p1[1] }
+      ];
+      dx = p2[0] - p1[0]; dz = p2[1] - p1[1];
+      nx = dz; nz = -dx;
+      mx = (p1[0] + p2[0]) / 2 - b.cx; mz = (p1[1] + p2[1]) / 2 - b.cz;
+      if (nx * mx + nz * mz < 0){ nx = -nx; nz = -nz; }
+      len = Math.hypot(nx, nz) || 1; nx /= len; nz /= len;
+      dot = nx * LIGHT.x + nz * LIGHT.z;
+      faces.push({ v: v, kind: "wall", tone: dot < 0.2 });
+    }
+  }
+  /* 지면 메쉬 */
+  var gn = state.elev ? 24 : 12, s = state.range;
+  var e = state.elev, range = (e ? (e.max - e.min) : 0) || 1;
+  for (j = 0; j < gn - 1; j++) for (i = 0; i < gn - 1; i++){
+    var gx0 = -s/2 + s*i/(gn-1), gx1 = -s/2 + s*(i+1)/(gn-1);
+    var gz0 = -s/2 + s*j/(gn-1), gz1 = -s/2 + s*(j+1)/(gn-1);
+    var h00 = elevAt(gx0,gz0), h10 = elevAt(gx1,gz0), h11 = elevAt(gx1,gz1), h01 = elevAt(gx0,gz1);
+    var hm = (h00+h10+h11+h01)/4;
+    var t = e ? (hm - e.min) / range : 0;
+    var gv = Math.round(255 - t * 22);
+    faces.push({
+      v: [{x:gx0,y:h00,z:gz0},{x:gx1,y:h10,z:gz0},{x:gx1,y:h11,z:gz1},{x:gx0,y:h01,z:gz1}],
+      kind: "ground", tone: false, shade: "rgb(" + gv + "," + gv + "," + gv + ")"
+    });
+  }
+  /* 회전 + 깊이 */
+  for (i = 0; i < faces.length; i++){
+    var f = faces[i], dzsum = 0, vi;
+    for (vi = 0; vi < f.v.length; vi++){
+      var vv = f.v[vi];
+      var r = rotYaw(vv.x, vv.z, P.yaw);
+      var p = rotPitch(vv.y, r.z, P.pitch);
+      vv._x = r.x; vv._y = p.y; vv._z = p.z; dzsum += p.z;
+    }
+    f.depth = -dzsum / f.v.length; /* depth 클수록 멀리: far -> near 정렬 */
+  }
+  faces.sort(faceDepthCmp);
+  return faces;
+}
+
+/* ---------- screentone pattern ---------- */
+var _tonePat = null;
+function tonePattern(g){
+  if (_tonePat) return _tonePat;
+  var c = document.createElement("canvas"); c.width = c.height = 7;
+  var gg = c.getContext("2d");
+  gg.fillStyle = "rgba(20,20,20,0.5)";
+  gg.beginPath(); gg.arc(3.5, 3.5, 1.5, 0, Math.PI * 2); gg.fill();
+  _tonePat = g.createPattern(c, "repeat");
+  return _tonePat;
+}
+
+/* ---------- draw ---------- */
+function render(g, W, H, px){
+  g.setTransform(px, 0, 0, px, 0, 0);
+  g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, H);
+  if (!state.buildings.length){
+    g.fillStyle = "#999"; g.font = "600 15px system-ui,sans-serif";
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("① 장소를 설정하고 [불러오기]를 눌러주세요", W/2, H/2);
+    return;
+  }
+  var P = projParams(W, H);
+  var faces = buildFaces(P);
+  var pat = state.tone ? tonePattern(g) : null;
+  var i, f, vi, vv, sc, sx, sy;
+  for (i = 0; i < faces.length; i++){
+    f = faces[i];
+    g.beginPath();
+    for (vi = 0; vi < f.v.length; vi++){
+      vv = f.v[vi];
+      sc = P.f / (P.f - vv._z * P.k + P.camOff);
+      sx = P.cx + vv._x * P.k * sc;
+      sy = P.cy - vv._y * P.k * sc;
+      if (vi) g.lineTo(sx, sy); else g.moveTo(sx, sy);
+    }
+    g.closePath();
+    if (f.kind === "roof") g.fillStyle = "#e9e9e9";
+    else if (f.kind === "ground") g.fillStyle = f.shade;
+    else g.fillStyle = "#ffffff";
+    g.fill();
+    if (f.kind === "wall" && f.tone && pat){ g.fillStyle = pat; g.fill(); }
+    g.lineWidth = f.kind === "ground" ? 0.6 : state.lineW;
+    g.strokeStyle = f.kind === "ground" ? "#dcdcdc" : "#141414";
+    g.stroke();
+  }
+  if (state.horizon){
+    var hp = projectPt(0, 0, -state.range * 4, P);
+    g.strokeStyle = "#bbbbbb"; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0, hp.sy); g.lineTo(W, hp.sy); g.stroke();
+  }
+}
+function draw(){
+  var dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  render(ctx, cssW, cssH, dpr);
+}
+function fitCanvas(){
+  cssW = els.stageWrap.clientWidth;
+  cssH = els.stage.clientHeight || Math.round(cssW * 0.7);
+  markDirty();
+}
+
+/* ---------- PNG download ---------- */
+function downloadPNG(mult){
+  if (!state.buildings.length){ toast("먼저 장소를 불러와주세요."); return; }
+  var dpr = window.devicePixelRatio || 1;
+  var c = document.createElement("canvas");
+  c.width = Math.round(cssW * dpr * mult);
+  c.height = Math.round(cssH * dpr * mult);
+  render(c.getContext("2d"), cssW, cssH, dpr * mult);
+  var a = document.createElement("a");
+  a.href = c.toDataURL("image/png");
+  a.download = state.name.replace(/[\\/:*?"<>|]/g, "_") + "_manga.png";
+  document.body.appendChild(a); a.click(); a.remove();
+  toast("PNG 저장됨 (" + mult + "x)");
+}
+
+/* ---------- UI bindings ---------- */
+function bindSeg(segEl, cb){
+  segEl.addEventListener("click", function(ev){
+    var b = ev.target.closest("button"); if (!b) return;
+    var btns = segEl.querySelectorAll("button");
+    for (var i = 0; i < btns.length; i++) btns[i].classList.remove("on");
+    b.classList.add("on"); cb(b.getAttribute("data-v"));
+  });
+}
+bindSeg(els.rangeSeg, function(v){ state.range = parseInt(v, 10); updateHash(); });
+$("presetChips").addEventListener("click", function(ev){
+  var b = ev.target.closest("button"); if (!b) return;
+  els.pname.value = b.getAttribute("data-n");
+  els.plat.value = b.getAttribute("data-lat");
+  els.plng.value = b.getAttribute("data-lng");
+});
+els.loadBtn.addEventListener("click", loadAll);
+function bindToggle(btn, get, set){
+  btn.addEventListener("click", function(){
+    var v = !get(); set(v);
+    btn.textContent = v ? "ON" : "OFF";
+    btn.classList.toggle("on", v); markDirty();
+  });
+}
+bindToggle(els.toneBtn, function(){ return state.tone; }, function(v){ state.tone = v; });
+bindToggle(els.horizonBtn, function(){ return state.horizon; }, function(v){ state.horizon = v; });
+bindToggle(els.rotBtn, function(){ return state.autoRot; }, function(v){ state.autoRot = v; });
+els.lineRange.addEventListener("input", function(){
+  state.lineW = parseFloat(els.lineRange.value);
+  els.lineVal.textContent = els.lineRange.value + "px"; markDirty();
+});
+els.resetYaw.addEventListener("click", function(){
+  state.yaw = 0; state.zoom = 1; markDirty(); updateHash(); toast("회전 리셋됨");
+});
+els.dl1.addEventListener("click", function(){ downloadPNG(1); });
+els.dl2.addEventListener("click", function(){ downloadPNG(2); });
+els.copyLink.addEventListener("click", function(){
+  updateHash();
+  var url = location.href;
+  function done(){ toast("링크가 복사되었습니다."); }
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(done, function(){ fallback(); });
+  } else fallback();
+  function fallback(){
+    var ta = document.createElement("textarea");
+    ta.value = url; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); done(); } catch(e){ toast("복사 실패"); }
+    ta.remove();
+  }
+});
+
+/* 드래그 회전 + 핀치 줌 */
+(function(){
+  var pointers = {}, lastDist = 0, lastX = 0;
+  function yawEnd(){ updateHash(); }
+  canvas.addEventListener("pointerdown", function(ev){
+    canvas.setPointerCapture(ev.pointerId);
+    pointers[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+    lastX = ev.clientX;
+    var ks = Object.keys(pointers);
+    if (ks.length === 2){
+      var p = ks.map(function(k){ return pointers[k]; });
+      lastDist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+    }
+  });
+  canvas.addEventListener("pointermove", function(ev){
+    if (!pointers[ev.pointerId]) return;
+    var prev = pointers[ev.pointerId];
+    pointers[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+    var ks = Object.keys(pointers);
+    if (ks.length === 1){
+      state.yaw = (state.yaw + (ev.clientX - prev.x) * 0.4) % 360;
+      markDirty();
+    } else if (ks.length === 2){
+      var p = ks.map(function(k){ return pointers[k]; });
+      var d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      if (lastDist > 0 && d > 0){
+        state.zoom = Math.max(0.5, Math.min(3, state.zoom * d / lastDist));
+        markDirty();
+      }
+      lastDist = d;
+    }
+  });
+  function up(ev){
+    delete pointers[ev.pointerId];
+    if (Object.keys(pointers).length === 0) yawEnd();
+  }
+  canvas.addEventListener("pointerup", up);
+  canvas.addEventListener("pointercancel", up);
+  canvas.addEventListener("wheel", function(ev){
+    ev.preventDefault();
+    state.zoom = Math.max(0.5, Math.min(3, state.zoom * Math.exp(-ev.deltaY * 0.001)));
+    markDirty();
+  }, { passive: false });
+})();
+
+/* ---------- main loop ---------- */
+function frame(){
+  requestAnimationFrame(frame);
+  if (state.autoRot){ state.yaw = (state.yaw + 0.15) % 360; state.dirty = true; }
+  if (state.dirty){ state.dirty = false; draw(); }
+}
+
+/* ---------- init ---------- */
+if ("ResizeObserver" in window) new ResizeObserver(fitCanvas).observe(els.stageWrap);
+window.addEventListener("resize", fitCanvas);
+fitCanvas();
+var fromHash = parseHash();
+syncInputs();
+requestAnimationFrame(frame);
+if (fromHash) loadAll(); else draw();
+})();
+</script>
+</body>
+</html>
