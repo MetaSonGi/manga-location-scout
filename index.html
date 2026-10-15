@@ -77,13 +77,13 @@
       <button data-v="500">500m</button>
       <button data-v="1000">1km</button>
     </div>
-    <label class="lbl">프리셋</label>
-    <div class="chips" id="presetChips">
-      <button data-lat="37.5826" data-lng="126.9837" data-n="서울 · 북촌 한옥마을">🏠 북촌한옥마을</button>
-      <button data-lat="37.5568" data-lng="126.9240" data-n="서울 · 홍대입구">🎸 홍대입구</button>
-      <button data-lat="35.1586" data-lng="129.1604" data-n="부산 · 해운대">🌊 해운대</button>
-      <button data-lat="35.8367" data-lng="129.2165" data-n="경주 · 황리단길">🏛 황리단길</button>
+    <label class="lbl">프리셋 <span class="muted">— 기본: 🇰🇷 한국</span></label>
+    <div class="seg" id="presetSeg" style="margin-bottom:8px;">
+      <button data-v="kr" class="on">🇰🇷 한국</button>
+      <button data-v="world">🌍 해외</button>
     </div>
+    <div class="chips" id="presetChips"></div>
+    <p class="note" id="presetDesc"></p>
     <button class="primary" id="loadBtn">🗺 불러오기</button>
     <div class="status" id="status"></div>
   </div>
@@ -322,6 +322,71 @@ function loadElevation(){
   });
 }
 
+/* ---------- presets (기본: 한국) ---------- */
+var PRESETS = {
+  kr: [
+    { n: "서울 · 북촌 한옥마을", lat: 37.5826, lng: 126.9837, icon: "🏠", short: "북촌한옥마을", desc: "한옥 지붕 능선이 살아있는 전통 마을 — 시대극·힐링물 배경에 최적" },
+    { n: "서울 · 홍대입구", lat: 37.5568, lng: 126.9240, icon: "🎸", short: "홍대입구", desc: "번화가 상점가와 골목길 — 청춘·일상물 배경" },
+    { n: "부산 · 해운대", lat: 35.1586, lng: 129.1604, icon: "🌊", short: "해운대", desc: "고층 리조트와 해변 — 여름·여행 에피소드용" },
+    { n: "경주 · 황리단길", lat: 35.8367, lng: 129.2165, icon: "🏛", short: "황리단길", desc: "한옥 카페 거리 — 레트로 감성 배경" }
+  ],
+  world: [
+    { n: "도쿄 · 시부야", lat: 35.6595, lng: 139.7005, icon: "🚦", short: "시부야", desc: "스크램블 교차로와 네온 간판 — 도시 액션물 배경에 최적" },
+    { n: "교토 · 기온", lat: 35.0037, lng: 135.7755, icon: "⛩", short: "기온", desc: "마치야 목조 거리 — 일본 시대극·감성물 배경" },
+    { n: "오사카 · 도톤보리", lat: 34.6687, lng: 135.5013, icon: "🎡", short: "도톤보리", desc: "대형 간판과 운하 — 유쾌한 번화가 씬용" },
+    { n: "뉴욕 · 타임스퀘어", lat: 40.7580, lng: -73.9855, icon: "🗽", short: "타임스퀘어", desc: "마천루 빌딩숲 — 블록버스터급 도시 배경" },
+    { n: "파리 · 에펠탑", lat: 48.8584, lng: 2.2945, icon: "🗼", short: "에펠탑", desc: "오스만식 석조 건축 — 유럽 로맨스 배경" }
+  ]
+};
+function renderPresetChips(group){
+  var wrap = $("presetChips"); wrap.innerHTML = "";
+  PRESETS[group].forEach(function(p){
+    var b = document.createElement("button");
+    b.textContent = p.icon + " " + p.short;
+    b.addEventListener("click", function(){
+      els.pname.value = p.n;
+      els.plat.value = p.lat;
+      els.plng.value = p.lng;
+      $("presetDesc").textContent = "💡 " + p.desc;
+    });
+    wrap.appendChild(b);
+  });
+  $("presetDesc").textContent = group === "kr"
+    ? "💡 한국 프리셋이 기본입니다. 해외 배경이 필요하면 🌍 해외 탭을 눌러보세요."
+    : "💡 해외 유명 로케를 골라보세요. 칩을 누르면 이름·좌표가 자동 입력됩니다.";
+}
+
+/* ---------- overpass (미러 자동 전환 + 타임아웃) ---------- */
+var OVERPASS_URLS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter"
+];
+function fetchOverpass(q){
+  var i = 0;
+  function attempt(){
+    setStatus("건물 서버 연결 중… (" + (i + 1) + "/" + OVERPASS_URLS.length + ")");
+    var ctrl = new AbortController();
+    var timer = setTimeout(function(){ ctrl.abort(); }, 45000);
+    return fetch(OVERPASS_URLS[i], {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "data=" + encodeURIComponent(q),
+      signal: ctrl.signal
+    }).then(function(res){
+      clearTimeout(timer);
+      if (!res.ok) throw new Error("Overpass 응답 오류 " + res.status);
+      return res.json();
+    }).catch(function(err){
+      clearTimeout(timer);
+      i++;
+      if (i < OVERPASS_URLS.length) return attempt();
+      throw err;
+    });
+  }
+  return attempt();
+}
+
 /* ---------- overpass ---------- */
 function loadAll(){
   var nm = els.pname.value.trim() || "untitled";
@@ -337,14 +402,7 @@ function loadAll(){
   var S = (state.lat - dLat).toFixed(6), N = (state.lat + dLat).toFixed(6);
   var W = (state.lng - dLng).toFixed(6), E = (state.lng + dLng).toFixed(6);
   var q = '[out:json][timeout:30];way["building"](' + S + "," + W + "," + N + "," + E + ");out tags geom;";
-  fetch("https://overpass-api.de/api/interpreter", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: "data=" + encodeURIComponent(q)
-  }).then(function(res){
-    if (!res.ok) throw new Error("Overpass 응답 오류 " + res.status);
-    return res.json();
-  }).then(function(data){
+  fetchOverpass(q).then(function(data){
     var els2 = (data.elements || []).filter(function(e){
       return e.type === "way" && e.geometry && e.geometry.length >= 3;
     });
@@ -384,7 +442,8 @@ function loadAll(){
     state.yaw = 0; state.zoom = 1;
     markDirty(); updateHash();
   }).catch(function(err){
-    setStatus("데이터를 불러오지 못했습니다: " + err.message, true);
+    var msg = (err && err.name === "AbortError") ? "서버 응답 시간 초과" : err.message;
+    setStatus("데이터를 불러오지 못했습니다(" + msg + "). 잠시 후 다시 시도해주세요.", true);
   }).finally(function(){
     setLoading(false); markDirty();
   });
@@ -546,12 +605,6 @@ function bindSeg(segEl, cb){
   });
 }
 bindSeg(els.rangeSeg, function(v){ state.range = parseInt(v, 10); updateHash(); });
-$("presetChips").addEventListener("click", function(ev){
-  var b = ev.target.closest("button"); if (!b) return;
-  els.pname.value = b.getAttribute("data-n");
-  els.plat.value = b.getAttribute("data-lat");
-  els.plng.value = b.getAttribute("data-lng");
-});
 els.loadBtn.addEventListener("click", loadAll);
 function bindToggle(btn, get, set){
   btn.addEventListener("click", function(){
@@ -643,6 +696,8 @@ function frame(){
 if ("ResizeObserver" in window) new ResizeObserver(fitCanvas).observe(els.stageWrap);
 window.addEventListener("resize", fitCanvas);
 fitCanvas();
+bindSeg($("presetSeg"), function(v){ renderPresetChips(v); });
+renderPresetChips("kr"); /* 프리셋 기본: 한국 */
 var fromHash = parseHash();
 syncInputs();
 requestAnimationFrame(frame);
